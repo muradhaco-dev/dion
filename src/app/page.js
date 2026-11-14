@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import Navbar from '../components/Navbar';
 import HeroIllustration from '../components/HeroIllustration';
 import { useLanguage } from '../context/LanguageContext';
@@ -55,8 +56,29 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Hero Illustration / Vector Mockup placeholder */}
-        <div className="mt-12 sm:mt-16">
+        {/* 1. Placement & 2. Container Styling: Directly below hero typography, above dashboard preview/metrics */}
+        <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 mt-12 mb-16">
+          <div className="relative group animate-fade-in-up">
+            {/* Ambient soft glow */}
+            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500/20 via-sky-500/15 to-violet-500/20 rounded-3xl blur-xl opacity-75 group-hover:opacity-100 transition duration-700 pointer-events-none" />
+
+            {/* 3. Image Styling, 4. Animation & 5. Optimization (Next.js Image, 16:9 aspect ratio, priority) */}
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-gray-200/50 shadow-2xl shadow-indigo-500/10 bg-white transition-transform duration-500 hover:scale-[1.02]">
+              <Image
+                src="/hero-invoice-chaser.jpg"
+                alt="Automated Invoice Chaser Platform Overview"
+                width={1920}
+                height={1080}
+                priority
+                className="w-full h-auto aspect-video object-cover rounded-2xl sm:rounded-3xl"
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 95vw, 1200px"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Dashboard Preview / Metrics Pipeline Section */}
+        <div className="mt-4">
           <HeroIllustration />
         </div>
       </section>
