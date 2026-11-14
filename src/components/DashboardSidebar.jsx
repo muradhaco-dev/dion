@@ -15,7 +15,8 @@ import {
   User, 
   Menu, 
   X,
-  ExternalLink
+  ExternalLink,
+  Settings
 } from 'lucide-react';
 
 export default function DashboardSidebar({ 
@@ -42,6 +43,11 @@ export default function DashboardSidebar({
       id: 'payments',
       label: t.dashboard.sidebar.links.payments,
       icon: CreditCard,
+    },
+    {
+      id: 'settings',
+      label: t.dashboard.sidebar.links.settings,
+      icon: Settings,
     },
   ];
 

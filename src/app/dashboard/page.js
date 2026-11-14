@@ -8,14 +8,15 @@ import DashboardSidebar from '../../components/DashboardSidebar';
 import CreateView from '../../components/dashboard/CreateView';
 import AppointmentsView from '../../components/dashboard/AppointmentsView';
 import PaymentsView from '../../components/dashboard/PaymentsView';
+import SettingsView from '../../components/dashboard/SettingsView';
 import { Menu, Zap } from 'lucide-react';
 
-export default function DashboardPage() {
+export default function DashboardPage({ defaultTab = 'create' }) {
   const { user, loading } = useAuth();
   const { t, dir } = useLanguage();
   const router = useRouter();
 
-  const [currentTab, setCurrentTab] = useState('create'); // 'create' | 'appointments' | 'payments'
+  const [currentTab, setCurrentTab] = useState(defaultTab); // 'create' | 'appointments' | 'payments'
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Real data state
@@ -139,6 +140,10 @@ export default function DashboardPage() {
               onMarkPaid={handleMarkPaid}
               onNavigateToCreate={() => setCurrentTab('create')}
             />
+          )}
+
+          {currentTab === 'settings' && (
+            <SettingsView />
           )}
         </main>
       </div>
