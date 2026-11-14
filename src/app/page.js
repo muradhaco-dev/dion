@@ -4,7 +4,6 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import Navbar from '../components/Navbar';
-import HeroIllustration from '../components/HeroIllustration';
 import { useLanguage } from '../context/LanguageContext';
 import { ArrowRight, CheckCircle2, ShieldCheck, Zap, Sparkles } from 'lucide-react';
 
@@ -16,11 +15,33 @@ export default function HomePage() {
       {/* 1. Navbar */}
       <Navbar />
 
-      {/* 2. Hero Section (Centered Layout) */}
-      <section className="relative pt-12 sm:pt-20 pb-16 sm:pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden">
-        {/* Subtle background glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-gradient-to-b from-indigo-100/60 to-transparent pointer-events-none -z-10" />
+      {/* 2. Hero Section (Image at Top, Typography Underneath) */}
+      <section className="relative pt-6 sm:pt-10 pb-16 sm:pb-24 px-4 sm:px-6 lg:px-8 overflow-hidden">
+        {/* Subtle atmospheric background glow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-96 bg-gradient-to-b from-indigo-100/70 to-transparent pointer-events-none -z-10" />
 
+        {/* Top: Hero Image Showcase Container */}
+        <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 mb-10 sm:mb-14">
+          <div className="relative group animate-fade-in-up">
+            {/* Ambient soft glow around the hero illustration */}
+            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500/20 via-sky-500/15 to-violet-500/20 rounded-3xl blur-xl opacity-75 group-hover:opacity-100 transition duration-700 pointer-events-none" />
+
+            {/* Responsive Hero Image with soft shadow, border, and subtle hover */}
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-gray-200/60 shadow-2xl shadow-indigo-500/10 bg-white transition-transform duration-500 hover:scale-[1.02]">
+              <Image
+                src="/hero-invoice-chaser.jpg"
+                alt="Automated Invoice Chaser Platform Overview"
+                width={1920}
+                height={1080}
+                priority
+                className="w-full h-auto aspect-video object-cover rounded-2xl sm:rounded-3xl"
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 95vw, 1200px"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Underneath: Main Hero Typography & Call-To-Actions */}
         <div className="max-w-4xl mx-auto text-center space-y-6">
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-50 border border-indigo-200/80 text-indigo-700 text-xs font-semibold shadow-xs">
@@ -28,17 +49,17 @@ export default function HomePage() {
             <span>{t.hero.badge}</span>
           </div>
 
-          {/* Main Title */}
+          {/* Headline */}
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 leading-tight sm:leading-tight">
             {t.hero.title}
           </h1>
 
-          {/* Subtitle */}
+          {/* Subtitle / Description */}
           <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
             {t.hero.subtitle}
           </p>
 
-          {/* Call to actions */}
+          {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
             <Link
               href="/signup"
@@ -54,32 +75,6 @@ export default function HomePage() {
               {t.hero.ctaSecondary}
             </Link>
           </div>
-        </div>
-
-        {/* 1. Placement & 2. Container Styling: Directly below hero typography, above dashboard preview/metrics */}
-        <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 mt-12 mb-16">
-          <div className="relative group animate-fade-in-up">
-            {/* Ambient soft glow */}
-            <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500/20 via-sky-500/15 to-violet-500/20 rounded-3xl blur-xl opacity-75 group-hover:opacity-100 transition duration-700 pointer-events-none" />
-
-            {/* 3. Image Styling, 4. Animation & 5. Optimization (Next.js Image, 16:9 aspect ratio, priority) */}
-            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-gray-200/50 shadow-2xl shadow-indigo-500/10 bg-white transition-transform duration-500 hover:scale-[1.02]">
-              <Image
-                src="/hero-invoice-chaser.jpg"
-                alt="Automated Invoice Chaser Platform Overview"
-                width={1920}
-                height={1080}
-                priority
-                className="w-full h-auto aspect-video object-cover rounded-2xl sm:rounded-3xl"
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 95vw, 1200px"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Dashboard Preview / Metrics Pipeline Section */}
-        <div className="mt-4">
-          <HeroIllustration />
         </div>
       </section>
 
