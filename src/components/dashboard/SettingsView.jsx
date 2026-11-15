@@ -88,22 +88,19 @@ export default function SettingsView() {
     try {
       const trimmedName = companyName.trim();
 
-      // STRICT RULE: Upsert to Supabase 'profiles' table passing id: user.id
+      // Upsert to Supabase 'profiles' table passing id: user.id
       if (isSupabaseConfigured) {
+        const profilePayload = {
+          id: user.id,
+          company_name: trimmedName,
+        };
+
         const { error: upsertError } = await supabase
           .from('profiles')
-          .upsert(
-            {
-              id: user.id, // STRICT REQUIREMENT: Ensure upsert passes id: user.id
-              company_name: trimmedName,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'id' }
-          );
+          .upsert(profilePayload, { onConflict: 'id' });
 
         if (upsertError) {
           console.error('Supabase profile upsert error:', upsertError);
-          // STRICT RULE 5: toast.error with exact error message from Supabase
           toast.error(upsertError.message || 'Failed to save company name in Supabase');
           throw upsertError;
         }
