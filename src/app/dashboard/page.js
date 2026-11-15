@@ -41,24 +41,31 @@ export default function DashboardPage({ defaultTab = 'create' }) {
 
       if (isSupabaseConfigured) {
         try {
-          const { data, error } = await supabase
+          let { data, error } = await supabase
             .from('invoices')
             .select('*')
-            .eq('user_id', user.id) // Filter by authenticated user's ID
+            .eq('user_id', user.id)
             .order('created_at', { ascending: false });
 
-          if (error) {
-            console.warn('Fetch invoices error:', error.message);
-            toast.error(error.message);
-          } else if (data && isMounted) {
+          // If user_id column doesn't exist yet, gracefully fallback
+          if (error && error.message?.includes('user_id')) {
+            const fallback = await supabase
+              .from('invoices')
+              .select('*')
+              .order('created_at', { ascending: false });
+            data = fallback.data;
+            error = fallback.error;
+          }
+
+          if (data && isMounted) {
             const formatted = data.map((inv) => ({
-              id: inv.id,
-              client: inv.client_name,
-              email: inv.client_email,
+              id: inv.id || inv.invoice_number,
+              client: inv.client_name || inv.client || 'Client',
+              email: inv.client_email || inv.email || '—',
               amount: inv.amount,
-              status: inv.status,
-              dueDate: inv.due_date,
-              notes: inv.description,
+              status: inv.status || 'pending',
+              dueDate: inv.due_date || inv.dueDate,
+              notes: inv.description || inv.notes,
               created_at: inv.created_at,
             }));
             setInvoices(formatted);

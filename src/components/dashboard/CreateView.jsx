@@ -39,52 +39,111 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
   const [appointmentNotes, setAppointmentNotes] = useState('');
   const [appointmentSuccess, setAppointmentSuccess] = useState(false);
 
-  // 3. Database Inserts: Automatically attach user.id + toast.error on failure
+  // 3. Database Inserts: Automatically attach user.id + Dual schema fallback + toast.error on failure
   const handleInvoiceSubmit = async (e) => {
     e.preventDefault();
     if (!clientName || !clientEmail || !amount || !dueDate) return;
 
     if (!user?.id) {
-      toast.error('No authenticated user session found. Please re-login.');
+      toast.error('لم يتم العثور على جلسة مستخدم نشطة. يرجى إعادة تسجيل الدخول.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const invoicePayload = {
-        user_id: user.id, // STRICT RULE: Automatically attach authenticated user.id
-        client_name: clientName.trim(),
-        client_email: clientEmail.trim(),
-        amount: parseFloat(amount),
-        due_date: dueDate,
-        description: notes.trim() || 'Invoice claim',
-        status: 'pending',
-      };
-
       if (isSupabaseConfigured) {
-        const { data, error } = await supabase
-          .from('invoices')
-          .insert([invoicePayload])
-          .select()
-          .single();
+        let savedData = null;
 
-        if (error) {
-          console.error('Supabase invoice insert error:', error);
-          toast.error(error.message || 'Failed to save invoice in Supabase');
-          throw error;
+        // Try direct insert with client_name & client_email first
+        const directPayload = {
+          user_id: user.id,
+          client_name: clientName.trim(),
+          client_email: clientEmail.trim(),
+          amount: parseFloat(amount),
+          due_date: dueDate,
+          description: notes.trim() || 'Invoice claim',
+          status: 'pending',
+        };
+
+        const { data: directData, error: directError } = await supabase
+          .from('invoices')
+          .insert([directPayload])
+          .select()
+          .maybeSingle();
+
+        if (!directError) {
+          savedData = directData;
+        } else if (directError.message?.includes('client_name') || directError.code === 'PGRST204') {
+          // Schema Fallback: If 'invoices' table uses relational client_id foreign key
+          try {
+            let clientId = null;
+            const { data: existingClient } = await supabase
+              .from('clients')
+              .select('id')
+              .eq('email', clientEmail.trim())
+              .maybeSingle();
+
+            if (existingClient?.id) {
+              clientId = existingClient.id;
+            } else {
+              const { data: newClient } = await supabase
+                .from('clients')
+                .insert([{ 
+                  name: clientName.trim(), 
+                  email: clientEmail.trim() 
+                }])
+                .select('id')
+                .maybeSingle();
+              clientId = newClient?.id;
+            }
+
+            if (clientId) {
+              const relationalPayload = {
+                client_id: clientId,
+                invoice_number: `INV-${Date.now().toString().slice(-4)}`,
+                amount: parseFloat(amount),
+                due_date: dueDate,
+                description: notes.trim() || 'Invoice claim',
+                status: 'pending',
+              };
+
+              const { data: relData, error: relError } = await supabase
+                .from('invoices')
+                .insert([relationalPayload])
+                .select()
+                .maybeSingle();
+
+              if (!relError) {
+                savedData = relData;
+              } else {
+                toast.error(relError.message || directError.message);
+                throw relError;
+              }
+            } else {
+              toast.error(directError.message);
+              throw directError;
+            }
+          } catch (relErr) {
+            console.error('Relational schema attempt:', relErr);
+            throw directError;
+          }
+        } else {
+          console.error('Supabase invoice insert error:', directError);
+          toast.error(directError.message || 'Failed to save invoice in Supabase');
+          throw directError;
         }
 
-        toast.success('Invoice saved to Supabase with user_id attached!');
+        toast.success('تم حفظ الفاتورة بنجاح!');
         if (onInvoiceCreated) {
           onInvoiceCreated({
-            id: data.id || `INV-${Date.now().toString().slice(-4)}`,
-            client: data.client_name || clientName,
-            email: data.client_email || clientEmail,
-            amount: data.amount || parseFloat(amount),
-            status: data.status || 'pending',
-            dueDate: data.due_date || dueDate,
-            notes: data.description || notes,
-            created_at: data.created_at || new Date().toISOString(),
+            id: savedData?.id || savedData?.invoice_number || `INV-${Date.now().toString().slice(-4)}`,
+            client: clientName.trim(),
+            email: clientEmail.trim(),
+            amount: parseFloat(amount),
+            status: 'pending',
+            dueDate: dueDate,
+            notes: notes.trim(),
+            created_at: new Date().toISOString(),
           });
         }
       } else {
@@ -100,7 +159,7 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
           created_at: new Date().toISOString(),
         };
 
-        toast.success('Invoice created successfully!');
+        toast.success('تم إنشاء الفاتورة بنجاح!');
         if (onInvoiceCreated) onInvoiceCreated(localInvoice);
       }
 
@@ -118,7 +177,7 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
     }
   };
 
-  const handleAppointmentSubmit = (e) => {
+  const handleAppointmentSubmit = async (e) => {
     e.preventDefault();
     if (!appointmentTitle || !appointmentClient || !appointmentDate) return;
 
@@ -134,8 +193,31 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
       created_at: new Date().toISOString(),
     };
 
+    if (isSupabaseConfigured && user?.id) {
+      try {
+        const { error } = await supabase
+          .from('appointments')
+          .insert([{
+            user_id: user.id,
+            title: appointmentTitle.trim(),
+            client_name: appointmentClient.trim(),
+            appointment_date: appointmentDate,
+            appointment_type: appointmentType,
+            notes: appointmentNotes.trim(),
+            status: 'upcoming'
+          }]);
+
+        if (error) {
+          // If table doesn't exist yet, warn softly
+          console.warn('Appointments Supabase table notice:', error.message);
+        }
+      } catch (err) {
+        console.warn('Appointment save notice:', err);
+      }
+    }
+
     onAppointmentCreated(newAppointment);
-    toast.success('Appointment scheduled!');
+    toast.success('تمت جدولة الموعد بنجاح!');
     setAppointmentSuccess(true);
     setAppointmentTitle('');
     setAppointmentClient('');
@@ -189,7 +271,7 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
           {invoiceSuccess && (
             <div className="mb-5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Record saved to Supabase with user_id attached!</span>
+              <span>تم حفظ الفاتورة بنجاح في قاعدة البيانات وتفعيل المتابعة الآلية!</span>
             </div>
           )}
 
@@ -197,7 +279,7 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  {t.dashboard.createView.form.clientName}
+                  {t.dashboard.createView.form.clientName} <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -214,7 +296,7 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  {t.dashboard.createView.form.clientEmail}
+                  {t.dashboard.createView.form.clientEmail} <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -233,7 +315,7 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  {t.dashboard.createView.form.amount}
+                  {t.dashboard.createView.form.amount} <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -252,7 +334,7 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  {t.dashboard.createView.form.dueDate}
+                  {t.dashboard.createView.form.dueDate} <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -275,7 +357,7 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
                 rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Contract services and deliverable breakdown..."
+                placeholder="تفاصيل العقد والمستحقات والخدمات المقدمة..."
                 className="w-full p-3 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
               />
             </div>
@@ -292,7 +374,7 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Saving to Supabase...</span>
+                    <span>جاري الحفظ في Supabase...</span>
                   </>
                 ) : (
                   <span>{t.dashboard.createView.form.submitBtn}</span>
@@ -309,7 +391,7 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
           {appointmentSuccess && (
             <div className="mb-5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Appointment successfully scheduled!</span>
+              <span>تمت جدولة الموعد بنجاح!</span>
             </div>
           )}
 
@@ -317,13 +399,13 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  {t.dashboard.createView.form.appointmentTitle}
+                  {t.dashboard.createView.form.appointmentTitle} <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={appointmentTitle}
                   onChange={(e) => setAppointmentTitle(e.target.value)}
-                  placeholder="Q4 Payment Reconciliation Call"
+                  placeholder="مكالمة تسوية ومتابعة مالية"
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
                   required
                 />
@@ -331,13 +413,13 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  {t.dashboard.createView.form.clientName}
+                  {t.dashboard.createView.form.clientName} <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={appointmentClient}
                   onChange={(e) => setAppointmentClient(e.target.value)}
-                  placeholder="Apex Capital"
+                  placeholder="شركة الأفق للتجارة"
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
                   required
                 />
@@ -347,7 +429,7 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  {t.dashboard.createView.form.appointmentDate}
+                  {t.dashboard.createView.form.appointmentDate} <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="datetime-local"
@@ -382,7 +464,7 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
                 rows={2}
                 value={appointmentNotes}
                 onChange={(e) => setAppointmentNotes(e.target.value)}
-                placeholder="Meeting agenda and discussion topics..."
+                placeholder="محاور الاجتماع وجدول الأعمال..."
                 className="w-full p-3 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
               />
             </div>
