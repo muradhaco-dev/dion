@@ -27,7 +27,7 @@ export function AuthProvider({ children }) {
   const router = useRouter();
   const authResolvedRef = useRef(false);
 
-  // Helper to extract Google avatar and name from user metadata
+  // Helper to extract real Google avatar and name from user metadata
   const extractUserMeta = useCallback((currentUser) => {
     if (!currentUser) return { avatarUrl: null, displayName: 'User' };
 
@@ -57,14 +57,18 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Safety timeout: Never leave the user stuck in an infinite loading spinner!
+    // Purge any legacy mock user data from localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('dion_mock_user');
+    }
+
+    // Safety timeout: Never leave the user stuck on an infinite loading spinner
     const safetyTimer = setTimeout(() => {
       if (isMounted && !authResolvedRef.current) {
-        console.warn('Auth check safety timeout reached (3.5s). Forcing loading to false.');
         authResolvedRef.current = true;
         setLoading(false);
       }
-    }, 3500);
+    }, 3000);
 
     const applySession = (newSession) => {
       authResolvedRef.current = true;
@@ -80,24 +84,12 @@ export function AuthProvider({ children }) {
     };
 
     if (!isSupabaseConfigured) {
-      // Demo mock fallback if Supabase env vars not configured
-      if (typeof window !== 'undefined') {
-        const savedMock = localStorage.getItem('dion_mock_user');
-        if (savedMock) {
-          try {
-            const parsed = JSON.parse(savedMock);
-            applySession({ user: parsed });
-            clearTimeout(safetyTimer);
-            return;
-          } catch (e) {}
-        }
-      }
       applySession(null);
       clearTimeout(safetyTimer);
       return;
     }
 
-    // 1. Listen for Supabase auth state change (Catches OAuth callback events like SIGNED_IN & INITIAL_SESSION)
+    // 1. Listen for Supabase auth state changes (Catches OAuth callback events like SIGNED_IN)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!isMounted) return;
       if (newSession?.user) {
@@ -117,13 +109,12 @@ export function AuthProvider({ children }) {
       .then(({ data: { session: activeSession }, error }) => {
         if (!isMounted) return;
         if (error) {
-          console.warn('getSession warning:', error.message);
+          console.warn('getSession notice:', error.message);
         }
         if (activeSession?.user) {
           applySession(activeSession);
           clearTimeout(safetyTimer);
         } else if (!authResolvedRef.current) {
-          // Check if there is an OAuth hash or code still being processed
           const hasOAuthParams = typeof window !== 'undefined' && (
             window.location.hash.includes('access_token') ||
             window.location.search.includes('code=')
@@ -147,111 +138,77 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  // Login with Email & Password
+  // Login with Email & Password (REAL Supabase Only)
   const loginWithEmail = async (email, password) => {
+    if (!isSupabaseConfigured) {
+      toast.error('يرجى ضبط مفاتيح Supabase في إعدادات Vercel أولاً');
+      return;
+    }
     setLoading(true);
     try {
-      if (isSupabaseConfigured) {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          toast.error(error.message);
-          throw error;
-        }
-        setUser(data.user);
-        setSession(data.session);
-        toast.success('Logged in successfully!');
-        return { success: true, user: data.user };
-      } else {
-        const mockUser = {
-          id: 'user_' + Date.now(),
-          email: email,
-          user_metadata: { full_name: email.split('@')[0] },
-          app_metadata: { provider: 'email' },
-          created_at: new Date().toISOString(),
-        };
-        localStorage.setItem('dion_mock_user', JSON.stringify(mockUser));
-        setUser(mockUser);
-        setSession({ user: mockUser });
-        toast.success('Logged in (Demo mode)');
-        return { success: true, user: mockUser };
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        toast.error(error.message);
+        throw error;
       }
+      setUser(data.user);
+      setSession(data.session);
+      toast.success('Logged in successfully!');
+      return { success: true, user: data.user };
     } finally {
       setLoading(false);
     }
   };
 
-  // Sign up with Email & Password
+  // Sign up with Email & Password (REAL Supabase Only)
   const signupWithEmail = async (email, password) => {
+    if (!isSupabaseConfigured) {
+      toast.error('يرجى ضبط مفاتيح Supabase في إعدادات Vercel أولاً');
+      return;
+    }
     setLoading(true);
     try {
-      if (isSupabaseConfigured) {
-        const { data, error } = await supabase.auth.signUp({ email, password });
-        if (error) {
-          toast.error(error.message);
-          throw error;
-        }
-        setUser(data.user);
-        setSession(data.session);
-        toast.success('Account created successfully!');
-        return { success: true, user: data.user };
-      } else {
-        const mockUser = {
-          id: 'user_' + Date.now(),
-          email: email,
-          user_metadata: { full_name: email.split('@')[0] },
-          app_metadata: { provider: 'email' },
-          created_at: new Date().toISOString(),
-        };
-        localStorage.setItem('dion_mock_user', JSON.stringify(mockUser));
-        setUser(mockUser);
-        setSession({ user: mockUser });
-        toast.success('Account created (Demo mode)');
-        return { success: true, user: mockUser };
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) {
+        toast.error(error.message);
+        throw error;
       }
+      setUser(data.user);
+      setSession(data.session);
+      toast.success('Account created successfully!');
+      return { success: true, user: data.user };
     } finally {
       setLoading(false);
     }
   };
 
-  // Continue with Google (OAuth)
+  // Continue with Google (REAL Supabase OAuth with Account Chooser)
   const loginWithGoogle = async () => {
+    if (!isSupabaseConfigured) {
+      toast.error('لم يتم العثور على مفاتيح Supabase في Vercel! أضف NEXT_PUBLIC_SUPABASE_URL و NEXT_PUBLIC_SUPABASE_ANON_KEY في Environment Variables على Vercel.');
+      return;
+    }
+
     setLoading(true);
     try {
-      if (isSupabaseConfigured) {
-        const origin = typeof window !== 'undefined' ? window.location.origin : '';
-        const redirectTo = `${origin}/dashboard`;
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const redirectTo = `${origin}/dashboard`;
 
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: 'google',
-          options: {
-            redirectTo,
-            queryParams: {
-              access_type: 'offline',
-              prompt: 'consent',
-            },
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account consent', // Force Google to show the account picker
           },
-        });
+        },
+      });
 
-        if (error) {
-          toast.error(error.message);
-          setLoading(false);
-          throw error;
-        }
-      } else {
-        const mockGoogleUser = {
-          id: 'google_user_01',
-          email: 'partner@google-workspace.com',
-          user_metadata: {
-            full_name: 'Verified Google User',
-            avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop&crop=faces',
-          },
-          app_metadata: { provider: 'google' },
-          created_at: new Date().toISOString(),
-        };
-        localStorage.setItem('dion_mock_user', JSON.stringify(mockGoogleUser));
-        setUser(mockGoogleUser);
-        setSession({ user: mockGoogleUser });
-        router.push('/dashboard');
+      if (error) {
+        toast.error(error.message);
+        setLoading(false);
+        throw error;
       }
     } catch (err) {
       console.error('Google login error:', err);

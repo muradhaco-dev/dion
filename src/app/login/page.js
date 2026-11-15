@@ -9,7 +9,7 @@ import LanguageDropdown from '../../components/LanguageDropdown';
 import { Zap, Mail, Lock, AlertCircle, ArrowLeft, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
-  const { loginWithEmail, loginWithGoogle, loading, user } = useAuth();
+  const { loginWithEmail, loginWithGoogle, loading, user, isSupabaseConfigured } = useAuth();
   const { t, dir } = useLanguage();
   const router = useRouter();
 
@@ -78,6 +78,19 @@ export default function LoginPage() {
               {t.auth.loginSubtitle}
             </p>
           </div>
+
+          {/* Supabase Keys Missing Notice */}
+          {!isSupabaseConfigured && (
+            <div className="mb-5 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs space-y-1">
+              <span className="font-bold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                مفاتيح Supabase غير مضافة في Vercel
+              </span>
+              <p className="text-[11px] text-amber-700 leading-relaxed">
+                لكي يفتح Google صفحة اختيار حسابك الحقيقي، يرجى إضافة متغيرات البيئة <code>NEXT_PUBLIC_SUPABASE_URL</code> و <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> في Vercel Environment Variables.
+              </p>
+            </div>
+          )}
 
           {/* Prominent Continue with Google Button (Supabase OAuth) */}
           <div className="mb-6">
