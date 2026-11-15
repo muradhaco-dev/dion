@@ -2,6 +2,9 @@
 
 import React, { useState } from 'react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase';
+import toast from 'react-hot-toast';
 import { 
   FileText, 
   Calendar, 
@@ -11,11 +14,12 @@ import {
   Clock, 
   Sparkles, 
   CheckCircle2,
-  Tag
+  Loader2
 } from 'lucide-react';
 
 export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('invoice'); // 'invoice' | 'appointment'
 
   // Invoice form state
@@ -24,6 +28,7 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
   const [amount, setAmount] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [invoiceSuccess, setInvoiceSuccess] = useState(false);
 
   // Appointment form state
@@ -34,30 +39,83 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
   const [appointmentNotes, setAppointmentNotes] = useState('');
   const [appointmentSuccess, setAppointmentSuccess] = useState(false);
 
-  const handleInvoiceSubmit = (e) => {
+  // 3. Database Inserts: Automatically attach user.id + toast.error on failure
+  const handleInvoiceSubmit = async (e) => {
     e.preventDefault();
     if (!clientName || !clientEmail || !amount || !dueDate) return;
 
-    const newInvoice = {
-      id: `INV-${Date.now().toString().slice(-4)}`,
-      client: clientName.trim(),
-      email: clientEmail.trim(),
-      amount: parseFloat(amount),
-      status: 'pending',
-      dueDate,
-      notes: notes.trim(),
-      created_at: new Date().toISOString(),
-    };
+    if (!user?.id) {
+      toast.error('No authenticated user session found. Please re-login.');
+      return;
+    }
 
-    onInvoiceCreated(newInvoice);
-    setInvoiceSuccess(true);
-    setClientName('');
-    setClientEmail('');
-    setAmount('');
-    setDueDate('');
-    setNotes('');
+    setIsSubmitting(true);
+    try {
+      const invoicePayload = {
+        user_id: user.id, // STRICT RULE: Automatically attach authenticated user.id
+        client_name: clientName.trim(),
+        client_email: clientEmail.trim(),
+        amount: parseFloat(amount),
+        due_date: dueDate,
+        description: notes.trim() || 'Invoice claim',
+        status: 'pending',
+      };
 
-    setTimeout(() => setInvoiceSuccess(false), 3000);
+      if (isSupabaseConfigured) {
+        const { data, error } = await supabase
+          .from('invoices')
+          .insert([invoicePayload])
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Supabase invoice insert error:', error);
+          toast.error(error.message || 'Failed to save invoice in Supabase');
+          throw error;
+        }
+
+        toast.success('Invoice saved to Supabase with user_id attached!');
+        if (onInvoiceCreated) {
+          onInvoiceCreated({
+            id: data.id || `INV-${Date.now().toString().slice(-4)}`,
+            client: data.client_name || clientName,
+            email: data.client_email || clientEmail,
+            amount: data.amount || parseFloat(amount),
+            status: data.status || 'pending',
+            dueDate: data.due_date || dueDate,
+            notes: data.description || notes,
+            created_at: data.created_at || new Date().toISOString(),
+          });
+        }
+      } else {
+        const localInvoice = {
+          id: `INV-${Date.now().toString().slice(-4)}`,
+          client: clientName.trim(),
+          email: clientEmail.trim(),
+          amount: parseFloat(amount),
+          status: 'pending',
+          dueDate,
+          notes: notes.trim(),
+          user_id: user.id,
+          created_at: new Date().toISOString(),
+        };
+
+        toast.success('Invoice created successfully!');
+        if (onInvoiceCreated) onInvoiceCreated(localInvoice);
+      }
+
+      setInvoiceSuccess(true);
+      setClientName('');
+      setClientEmail('');
+      setAmount('');
+      setDueDate('');
+      setNotes('');
+      setTimeout(() => setInvoiceSuccess(false), 3500);
+    } catch (err) {
+      console.error('Invoice submission failed:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleAppointmentSubmit = (e) => {
@@ -66,6 +124,7 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
 
     const newAppointment = {
       id: `APT-${Date.now().toString().slice(-4)}`,
+      user_id: user?.id,
       title: appointmentTitle.trim(),
       client: appointmentClient.trim(),
       date: appointmentDate,
@@ -76,12 +135,12 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
     };
 
     onAppointmentCreated(newAppointment);
+    toast.success('Appointment scheduled!');
     setAppointmentSuccess(true);
     setAppointmentTitle('');
     setAppointmentClient('');
     setAppointmentDate('');
     setAppointmentNotes('');
-
     setTimeout(() => setAppointmentSuccess(false), 3000);
   };
 
@@ -130,7 +189,7 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
           {invoiceSuccess && (
             <div className="mb-5 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Record saved successfully and enrolled in automated chaser!</span>
+              <span>Record saved to Supabase with user_id attached!</span>
             </div>
           )}
 
@@ -221,12 +280,23 @@ export default function CreateView({ onInvoiceCreated, onAppointmentCreated }) {
               />
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex items-center justify-between">
+              <span className="text-xs text-slate-400 font-mono">
+                user_id: {user?.id?.slice(0, 12)}...
+              </span>
               <button
                 type="submit"
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs transition shadow-indigo-500/20"
+                disabled={isSubmitting}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 text-white font-semibold text-xs sm:text-sm shadow-xs transition shadow-indigo-500/20"
               >
-                {t.dashboard.createView.form.submitBtn}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Saving to Supabase...</span>
+                  </>
+                ) : (
+                  <span>{t.dashboard.createView.form.submitBtn}</span>
+                )}
               </button>
             </div>
           </form>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
@@ -9,9 +9,16 @@ import LanguageDropdown from '../../components/LanguageDropdown';
 import { Zap, Mail, Lock, AlertCircle } from 'lucide-react';
 
 export default function SignupPage() {
-  const { signupWithEmail, loginWithGoogle, loading } = useAuth();
+  const { signupWithEmail, loginWithGoogle, loading, user } = useAuth();
   const { t, dir } = useLanguage();
   const router = useRouter();
+
+  // If already authenticated, redirect to dashboard
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace('/dashboard');
+    }
+  }, [user, loading, router]);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

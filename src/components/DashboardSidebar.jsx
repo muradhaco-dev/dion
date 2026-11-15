@@ -26,7 +26,7 @@ export default function DashboardSidebar({
   setMobileOpen 
 }) {
   const { t } = useLanguage();
-  const { user, logout, switchAccount } = useAuth();
+  const { user, logout, switchAccount, avatarUrl, displayName } = useAuth();
 
   const links = [
     {
@@ -125,16 +125,25 @@ export default function DashboardSidebar({
 
         {/* Bottom Area: User Info + Switch Account + Logout Buttons */}
         <div className="p-3 border-t border-slate-100 space-y-2">
-          {/* User profile strip */}
+          {/* User profile strip with Google avatar and name */}
           <div className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-50 border border-slate-100">
-            <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center shrink-0">
-              {user?.email ? user.email.charAt(0).toUpperCase() : <User className="w-4 h-4" />}
-            </div>
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={displayName}
+                referrerPolicy="no-referrer"
+                className="w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center shrink-0 border border-indigo-200">
+                {displayName ? displayName.charAt(0).toUpperCase() : <User className="w-4 h-4" />}
+              </div>
+            )}
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-slate-800 truncate">
-                {user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User'}
+              <p className="text-xs font-semibold text-slate-900 truncate" title={displayName}>
+                {displayName}
               </p>
-              <p className="text-[10px] text-slate-400 truncate">
+              <p className="text-[10px] text-slate-400 truncate font-mono" title={user?.email || ''}>
                 {user?.email || 'Authenticated User'}
               </p>
             </div>

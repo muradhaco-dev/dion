@@ -1,59 +1,142 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 
 const AuthContext = createContext({
   user: null,
+  session: null,
   loading: true,
+  avatarUrl: null,
+  displayName: 'User',
   loginWithEmail: async () => {},
   signupWithEmail: async () => {},
   loginWithGoogle: async () => {},
   logout: async () => {},
   switchAccount: async () => {},
+  refreshSession: async () => {},
   isSupabaseConfigured: false,
 });
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  // Helper to extract Google avatar and name from user metadata
+  const extractUserMeta = useCallback((currentUser) => {
+    if (!currentUser) return { avatarUrl: null, displayName: 'User' };
+
+    const meta = currentUser.user_metadata || {};
+    const identities = currentUser.identities || [];
+    const firstIdentityData = identities[0]?.identity_data || {};
+
+    const avatarUrl =
+      meta.avatar_url ||
+      meta.picture ||
+      firstIdentityData.avatar_url ||
+      firstIdentityData.picture ||
+      null;
+
+    const displayName =
+      meta.full_name ||
+      meta.name ||
+      firstIdentityData.full_name ||
+      firstIdentityData.name ||
+      currentUser.email?.split('@')[0] ||
+      'User';
+
+    return { avatarUrl, displayName };
+  }, []);
+
+  // 1. Core Session Initialization & OAuth Callback handling
   useEffect(() => {
-    // 1. Check local session from Supabase
-    const initAuth = async () => {
+    let isMounted = true;
+
+    const initSession = async () => {
       try {
-        if (isSupabaseConfigured) {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            setUser(session.user);
+        if (!isSupabaseConfigured) {
+          // Check local mock user if Supabase credentials are not yet set
+          if (typeof window !== 'undefined') {
+            const savedMock = localStorage.getItem('dion_mock_user');
+            if (savedMock && isMounted) {
+              const parsed = JSON.parse(savedMock);
+              setUser(parsed);
+              setSession({ user: parsed });
+            }
           }
-        } else {
-          // Check demo/local mock user
-          const savedMock = localStorage.getItem('dion_mock_user');
-          if (savedMock) {
-            setUser(JSON.parse(savedMock));
+          if (isMounted) setLoading(false);
+          return;
+        }
+
+        // Check if there is an OAuth PKCE code in the URL
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          const code = url.searchParams.get('code');
+
+          if (code) {
+            try {
+              const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+              if (error) {
+                console.error('Error exchanging OAuth code for session:', error.message);
+                toast.error(error.message);
+              } else if (data?.session && isMounted) {
+                setSession(data.session);
+                setUser(data.session.user);
+                // Clean the code parameter from the browser URL bar
+                url.searchParams.delete('code');
+                window.history.replaceState({}, document.title, url.pathname);
+              }
+            } catch (err) {
+              console.warn('Code exchange handled or not required:', err);
+            }
           }
         }
+
+        // Fetch the active session from Supabase client
+        const { data: { session: activeSession }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.warn('Supabase getSession notice:', error.message);
+        }
+
+        if (activeSession && isMounted) {
+          setSession(activeSession);
+          setUser(activeSession.user);
+        }
       } catch (err) {
-        console.warn('Auth initialization warning:', err);
+        console.error('Unexpected auth initialization error:', err);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
-    initAuth();
+    initSession();
 
-    // 2. Subscribe to auth changes if Supabase is configured
+    // 2. Subscribe to auth state changes (crucial for Google OAuth login events)
     if (isSupabaseConfigured) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        setUser(session?.user || null);
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+        if (!isMounted) return;
+
+        if (newSession?.user) {
+          setSession(newSession);
+          setUser(newSession.user);
+        } else if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
+        }
+
         setLoading(false);
       });
 
       return () => {
-        subscription.unsubscribe();
+        isMounted = false;
+        subscription?.unsubscribe();
       };
     }
   }, []);
@@ -64,11 +147,15 @@ export function AuthProvider({ children }) {
     try {
       if (isSupabaseConfigured) {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        if (error) {
+          toast.error(error.message);
+          throw error;
+        }
         setUser(data.user);
+        setSession(data.session);
+        toast.success('Logged in successfully!');
         return { success: true, user: data.user };
       } else {
-        // Fallback local auth for instant testing
         const mockUser = {
           id: 'user_' + Date.now(),
           email: email,
@@ -78,6 +165,8 @@ export function AuthProvider({ children }) {
         };
         localStorage.setItem('dion_mock_user', JSON.stringify(mockUser));
         setUser(mockUser);
+        setSession({ user: mockUser });
+        toast.success('Logged in (Demo mode)');
         return { success: true, user: mockUser };
       }
     } finally {
@@ -91,8 +180,13 @@ export function AuthProvider({ children }) {
     try {
       if (isSupabaseConfigured) {
         const { data, error } = await supabase.auth.signUp({ email, password });
-        if (error) throw error;
+        if (error) {
+          toast.error(error.message);
+          throw error;
+        }
         setUser(data.user);
+        setSession(data.session);
+        toast.success('Account created successfully!');
         return { success: true, user: data.user };
       } else {
         const mockUser = {
@@ -104,6 +198,8 @@ export function AuthProvider({ children }) {
         };
         localStorage.setItem('dion_mock_user', JSON.stringify(mockUser));
         setUser(mockUser);
+        setSession({ user: mockUser });
+        toast.success('Account created (Demo mode)');
         return { success: true, user: mockUser };
       }
     } finally {
@@ -116,9 +212,9 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       if (isSupabaseConfigured) {
-        const redirectTo = typeof window !== 'undefined' 
-          ? `${window.location.origin}/dashboard` 
-          : '/dashboard';
+        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+        const redirectTo = `${origin}/dashboard`;
+
         const { error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
@@ -129,9 +225,13 @@ export function AuthProvider({ children }) {
             },
           },
         });
-        if (error) throw error;
+
+        if (error) {
+          toast.error(error.message);
+          throw error;
+        }
       } else {
-        // Demo sign in with Google
+        // Fallback demo mode
         const mockGoogleUser = {
           id: 'google_user_01',
           email: 'partner@google-workspace.com',
@@ -144,9 +244,12 @@ export function AuthProvider({ children }) {
         };
         localStorage.setItem('dion_mock_user', JSON.stringify(mockGoogleUser));
         setUser(mockGoogleUser);
+        setSession({ user: mockGoogleUser });
         router.push('/dashboard');
       }
-    } finally {
+    } catch (err) {
+      console.error('Google login error:', err);
+      toast.error(err.message || 'Failed to initiate Google sign in');
       setLoading(false);
     }
   };
@@ -156,32 +259,56 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       if (isSupabaseConfigured) {
-        await supabase.auth.signOut();
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          console.warn('Signout warning:', error.message);
+        }
       }
-      localStorage.removeItem('dion_mock_user');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('dion_mock_user');
+      }
       setUser(null);
-      router.push('/');
+      setSession(null);
+      toast.success('Signed out');
+      router.push('/login');
+    } catch (err) {
+      console.error('Logout error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Switch Account (per requirement in Sidebar bottom)
+  // Switch Account
   const switchAccount = async () => {
     await logout();
-    router.push('/login');
   };
+
+  // Manual refresh helper
+  const refreshSession = async () => {
+    if (!isSupabaseConfigured) return;
+    const { data: { session: activeSession } } = await supabase.auth.getSession();
+    if (activeSession) {
+      setSession(activeSession);
+      setUser(activeSession.user);
+    }
+  };
+
+  const { avatarUrl, displayName } = extractUserMeta(user);
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        session,
         loading,
+        avatarUrl,
+        displayName,
         loginWithEmail,
         signupWithEmail,
         loginWithGoogle,
         logout,
         switchAccount,
+        refreshSession,
         isSupabaseConfigured,
       }}
     >
