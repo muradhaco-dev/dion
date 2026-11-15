@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -156,9 +158,16 @@ export default function DashboardPage({ defaultTab = 'create' }) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans" dir={dir}>
         <div className="text-center space-y-4 max-w-sm px-4">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white mx-auto shadow-lg shadow-indigo-500/25">
-            <Zap className="w-6 h-6 fill-white" />
-          </div>
+          <Link href="/" className="inline-block transition-transform hover:opacity-95">
+            <Image
+              src="/logo.jpg"
+              alt="ChaserFlow Logo"
+              width={200}
+              height={60}
+              priority
+              className="h-10 w-auto object-contain rounded-xl mx-auto shadow-md"
+            />
+          </Link>
           <div className="flex items-center justify-center gap-2 text-xs font-semibold text-slate-700">
             <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
             <span>Connecting your account...</span>
@@ -200,7 +209,7 @@ export default function DashboardPage({ defaultTab = 'create' }) {
 
       {/* 2. Main Content Canvas */}
       <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
-        {/* 1. Top Navbar / Header displaying Google Profile Picture and Name */}
+        {/* 1. Top Navbar / Header displaying ChaserFlow Logo & Google Profile Picture */}
         <header className="h-16 bg-white/85 backdrop-blur-md border-b border-slate-200/90 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button
@@ -210,11 +219,20 @@ export default function DashboardPage({ defaultTab = 'create' }) {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-slate-900 capitalize">
-                {t.dashboard.sidebar.links[currentTab] || currentTab}
-              </span>
-            </div>
+            <Link href="/" className="flex items-center transition-transform hover:opacity-95">
+              <Image
+                src="/logo.jpg"
+                alt="ChaserFlow Logo"
+                width={180}
+                height={50}
+                priority
+                className="h-7 sm:h-8 w-auto object-contain rounded-md"
+              />
+            </Link>
+            <span className="text-slate-300 hidden sm:inline">/</span>
+            <span className="text-xs sm:text-sm font-semibold text-slate-700 capitalize hidden sm:inline">
+              {t.dashboard.sidebar.links[currentTab] || currentTab}
+            </span>
           </div>
 
           {/* User profile with Google avatar and name in Navbar/Header */}

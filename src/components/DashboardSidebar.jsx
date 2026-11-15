@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import LanguageDropdown from './LanguageDropdown';
@@ -69,20 +70,17 @@ export default function DashboardSidebar({
       >
         {/* Top: Brand Header & Navigation Links */}
         <div>
-          {/* Brand */}
-          <div className="h-16 px-6 border-b border-slate-100 flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-xs">
-                <Zap className="w-4 h-4 fill-white" />
-              </div>
-              <div>
-                <span className="font-bold text-slate-900 text-sm tracking-tight block">
-                  {t.dashboard.sidebar.brand}
-                </span>
-                <span className="text-[10px] text-slate-400 block -mt-0.5">
-                  {t.dashboard.sidebar.subtitle}
-                </span>
-              </div>
+          {/* Brand Logo */}
+          <div className="h-16 px-4 border-b border-slate-100 flex items-center justify-between">
+            <Link href="/" className="flex items-center transition-transform hover:opacity-95">
+              <Image
+                src="/logo.jpg"
+                alt="ChaserFlow Logo"
+                width={200}
+                height={60}
+                priority
+                className="h-8 sm:h-9 w-auto object-contain rounded-lg shadow-xs"
+              />
             </Link>
 
             <button

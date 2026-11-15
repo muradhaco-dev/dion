@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -69,11 +70,15 @@ export default function SignupPage() {
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans" dir={dir}>
       {/* Top Bar with Brand & Language Dropdown */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md px-4 flex items-center justify-between mb-6">
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-xs">
-            <Zap className="w-4 h-4 fill-white" />
-          </div>
-          <span className="font-bold text-slate-900 text-lg tracking-tight">Dion.</span>
+        <Link href="/" className="flex items-center gap-2 group transition-opacity hover:opacity-90">
+          <Image
+            src="/logo.jpg"
+            alt="ChaserFlow Logo"
+            width={180}
+            height={50}
+            priority
+            className="h-8 sm:h-9 w-auto object-contain rounded-lg shadow-xs"
+          />
         </Link>
         <LanguageDropdown />
       </div>

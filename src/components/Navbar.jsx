@@ -2,10 +2,11 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import LanguageDropdown from './LanguageDropdown';
-import { Zap, ArrowRight, LayoutDashboard } from 'lucide-react';
+import { LayoutDashboard } from 'lucide-react';
 
 export default function Navbar() {
   const { t } = useLanguage();
@@ -14,7 +15,7 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-40 w-full bg-white/80 backdrop-blur-md border-b border-slate-200/80">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Left: Login & Sign Up buttons (per strict prompt requirement) */}
+        {/* Left: Login & Sign Up buttons */}
         <div className="flex items-center gap-2 sm:gap-3 order-1">
           {user ? (
             <Link
@@ -45,20 +46,22 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* Center: Brand Identity */}
+        {/* Center: ChaserFlow Brand Logo */}
         <Link 
           href="/" 
-          className="flex items-center gap-2.5 group order-2"
+          className="flex items-center group order-2 transition-transform hover:opacity-95"
         >
-          <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm shadow-indigo-500/25 group-hover:scale-105 transition-transform">
-            <Zap className="w-4 h-4 fill-white" />
-          </div>
-          <span className="font-bold text-slate-900 text-base sm:text-lg tracking-tight">
-            Dion<span className="text-indigo-600">.</span>
-          </span>
+          <Image
+            src="/logo.jpg"
+            alt="ChaserFlow Logo"
+            width={240}
+            height={80}
+            priority
+            className="h-8 sm:h-10 w-auto object-contain rounded-lg shadow-xs"
+          />
         </Link>
 
-        {/* Right: Language Switcher Dropdown (per strict prompt requirement) */}
+        {/* Right: Language Switcher Dropdown */}
         <div className="flex items-center gap-2 order-3">
           <LanguageDropdown />
         </div>
