@@ -148,22 +148,37 @@ export default function DashboardPage({ defaultTab = 'create' }) {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans" dir={dir}>
-        <div className="text-center space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white mx-auto shadow-lg shadow-indigo-500/25 animate-pulse">
+        <div className="text-center space-y-4 max-w-sm px-4">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white mx-auto shadow-lg shadow-indigo-500/25">
             <Zap className="w-6 h-6 fill-white" />
           </div>
-          <div className="flex items-center justify-center gap-2 text-xs font-semibold text-slate-600">
+          <div className="flex items-center justify-center gap-2 text-xs font-semibold text-slate-700">
             <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
-            <span>Checking authentication session...</span>
+            <span>Connecting your account...</span>
           </div>
+          <p className="text-[11px] text-slate-400">
+            Please wait a moment while we verify your session.
+          </p>
         </div>
       </div>
     );
   }
 
-  // 2. Route Protection: If unauthenticated, do not render dashboard while redirecting
+  // 2. Route Protection: If unauthenticated, redirect to login
   if (!user && !session) {
-    return null;
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans" dir={dir}>
+        <div className="text-center space-y-3 max-w-sm px-4">
+          <p className="text-xs text-slate-500">No active session found. Redirecting to login...</p>
+          <a
+            href="/login"
+            className="inline-block px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold shadow-xs"
+          >
+            Sign In Now
+          </a>
+        </div>
+      </div>
+    );
   }
 
   return (
